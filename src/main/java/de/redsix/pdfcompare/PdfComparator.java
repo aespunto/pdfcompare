@@ -51,7 +51,7 @@ public class PdfComparator<T extends CompareResult> {
     public static final int DPI = 300;
     private static final int EXTRA_RGB = new Color(0, 160, 0).getRGB();
     private static final int MISSING_RGB = new Color(220, 0, 0).getRGB();
-    public static final int MARKER_WIDTH = 20;
+    public static final int MARKER_WIDTH = 1;
     private Environment environment;
     private final Exclusions exclusions = new Exclusions();
     private InputStreamSupplier expectedStreamSupplier;
@@ -252,7 +252,7 @@ public class PdfComparator<T extends CompareResult> {
                         .submit(() -> renderPageAsImage(actualDocument, actualPdfRenderer, pageIndex));
                 final ImageWithDimension expectedImage = getImage(expectedImageFuture, pageIndex, "expected document");
                 final ImageWithDimension actualImage = getImage(actualImageFuture, pageIndex, "actual document");
-                final DiffImage diffImage = new DiffImage(expectedImage, actualImage, pageIndex, environment, exclusions, compareResult);
+                final DiffImage diffImage = new DiffImage(expectedImage, actualImage, pageIndex, environment, exclusions, compareResult, 0);
                 LOG.trace("Enqueueing page {}.", pageIndex);
                 diffExecutor.execute(() -> {
                     LOG.trace("Diffing page {}", diffImage);

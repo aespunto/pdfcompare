@@ -33,7 +33,7 @@ import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import de.redsix.pdfcompare.env.Environment;
 
 /**
- * A CompareResult tracks the differences, that result from a comparison.
+ * A CompareResult tracks the diffsFound, that result from a comparison.
  * The CompareResult only stores the diffImages, for lower memory consumption.
  * If you also need the expected and actual Image, please use the Subclass
  * {@link CompareResultWithExpectedAndActual}
@@ -46,6 +46,10 @@ public class CompareResult implements ResultCollector {
     protected boolean hasDifferenceInExclusion = false;
     private boolean expectedOnly;
     private boolean actualOnly;
+    private long diffsFound;
+    private long totalPixels;
+    private long whitePixels;
+    private double allowedDiffInPercent;
 
     /**
      * Write the result Pdf to a file. Warning: This will remove the diffImages from memory!
@@ -109,6 +113,10 @@ public class CompareResult implements ResultCollector {
         if (diffCalculator.differencesFound()) {
             isEqual = false;
         }
+        this.diffsFound += diffCalculator.getDiffsFound();
+        this.totalPixels += diffCalculator.getTotalPixels();
+        this.whitePixels += diffCalculator.getWhitePixels();
+        this.allowedDiffInPercent = diffCalculator.getAllowedDiffInPercent();
         diffImages.put(pageIndex, diffImage);
     }
 
@@ -158,5 +166,21 @@ public class CompareResult implements ResultCollector {
 
     public void setEnvironment(Environment environment) {
         this.environment = environment;
+    }
+
+    public long getDiffsFound() {
+        return diffsFound;
+    }
+
+    public long getTotalPixels() {
+        return totalPixels;
+    }
+
+    public double getAllowedDiffInPercent() {
+        return allowedDiffInPercent;
+    }
+
+    public long getWhitePixels() {
+        return whitePixels;
     }
 }

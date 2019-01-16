@@ -2,11 +2,10 @@ package de.redsix.pdfcompare;
 
 import static de.redsix.pdfcompare.PdfComparator.MARKER_WIDTH;
 
-import java.awt.*;
+import de.redsix.pdfcompare.env.Environment;
+import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBuffer;
-
-import de.redsix.pdfcompare.env.Environment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,6 +13,7 @@ public class DiffImage {
 
     private static final Logger LOG = LoggerFactory.getLogger(DiffImage.class);
     /*package*/ static final int MARKER_RGB = color(230, 0, 230);
+    private final int allowedColorDifferencesPerChannel;
     private final ImageWithDimension expectedImage;
     private final ImageWithDimension actualImage;
     private final int page;
@@ -33,13 +33,15 @@ public class DiffImage {
     private PageDiffCalculator diffCalculator;
 
     public DiffImage(final ImageWithDimension expectedImage, final ImageWithDimension actualImage, final int page,
-                     final Environment environment, final Exclusions exclusions, final ResultCollector compareResult) {
+                     final Environment environment, final Exclusions exclusions, final ResultCollector compareResult,
+                     final int allowedColorDifferencesPerChannel) {
         this.expectedImage = expectedImage;
         this.actualImage = actualImage;
         this.page = page;
         this.environment = environment;
         this.exclusions = exclusions;
         this.compareResult = compareResult;
+        this.allowedColorDifferencesPerChannel = allowedColorDifferencesPerChannel;
     }
 
     public BufferedImage getImage() {
@@ -67,6 +69,7 @@ public class DiffImage {
         int expectedElement;
         int actualElement;
         final PageExclusions pageExclusions = exclusions.forPage(page + 1);
+        boolean bothElementWhite = false;
 
         for (int y = 0; y < resultImageHeight; y++) {
             final int expectedLineOffset = y * expectedImageWidth;
@@ -75,14 +78,28 @@ public class DiffImage {
             for (int x = 0; x < resultImageWidth; x++) {
                 expectedElement = getExpectedElement(x, y, expectedLineOffset);
                 actualElement = getActualElement(x, y, actualLineOffset);
-                int element = getElement(expectedElement, actualElement);
+                bothElementWhite = this.isWhite(expectedElement) && this.isWhite(actualElement);
+                if (bothElementWhite) {
+                    diffCalculator.incrementWhitePixel();
+                }
+                int allowedColorDifferencesPerChannel = this.allowedColorDifferencesPerChannel;
+                double difference = -1;
+                int element = -1;
+                if (allowedColorDifferencesPerChannel == 0) {
+                    difference = Math.abs(expectedElement - actualElement);
+                    element = this.getElementTheOriginalWay(expectedElement, actualElement);
+                } else {
+                    difference = this.getLinearDifferenceWithoutAlpha(expectedElement, actualElement);
+                    element = this.getElementTheNaiveWay(expectedElement, actualElement);
+                }
+
                 if (pageExclusions.contains(x, y)) {
                     element = ImageTools.fadeExclusion(element);
-                    if (expectedElement != actualElement) {
+                    if (difference > this.getAllowedColorDifference()) {
                         diffCalculator.diffFoundInExclusion();
                     }
                 } else {
-                    if (expectedElement != actualElement) {
+                    if (!bothElementWhite && difference > this.getAllowedColorDifference()) {
                         extendDiffArea(x, y);
                         diffCalculator.diffFound();
                         LOG.trace("Difference found on page: {} at x: {}, y: {}", page + 1, x, y);
@@ -112,8 +129,23 @@ public class DiffImage {
         diffAreaY2 = Math.max(diffAreaY2, y);
     }
 
-    private int getElement(final int expectedElement, final int actualElement) {
+    private int getElementTheOriginalWay(final int expectedElement, final int actualElement) {
         if (expectedElement != actualElement) {
+            int expectedDarkness = calcCombinedIntensity(expectedElement);
+            int actualDarkness = calcCombinedIntensity(actualElement);
+            if (expectedDarkness > actualDarkness) {
+                return color(levelIntensity(expectedDarkness, 210), 0, 0);
+            } else {
+                return color(0, levelIntensity(actualDarkness, 180), 0);
+            }
+        } else {
+            return ImageTools.fadeElement(expectedElement);
+        }
+    }
+
+    private int getElementTheNaiveWay(int expectedElement, int actualElement) {
+        double difference = this.getLinearDifferenceWithoutAlpha(expectedElement, actualElement);
+        if(difference >  this.getAllowedColorDifference()) {
             int expectedDarkness = calcCombinedIntensity(expectedElement);
             int actualDarkness = calcCombinedIntensity(actualElement);
             if (expectedDarkness > actualDarkness) {
@@ -179,5 +211,38 @@ public class DiffImage {
         return "DiffImage{" +
                 "page=" + page +
                 '}';
+    }
+
+    private Color getRGBColor(int color) {
+        int b = (color>>0)&0xFF;
+        int g = (color>>8)&0xFF;
+        int r = (color>>16)&0xFF;
+        int a = (color>>24)&0xFF;
+        return new Color(r, g, b, a);
+    }
+
+    private double getLinearDifferenceWithoutAlpha(int expected, int actual) {
+        Color expectedColor = this.getRGBColor(expected);
+        Color actualColor = this.getRGBColor(actual);
+        double difference =
+            (   getLinearDifferenceMultiplyer(Math.pow(Math.abs(expectedColor.getRed() - actualColor.getRed()), 2))
+                +   getLinearDifferenceMultiplyer(Math.pow(Math.abs(expectedColor.getGreen() - actualColor.getGreen()), 2))
+                +   getLinearDifferenceMultiplyer(Math.pow(Math.abs(expectedColor.getBlue() - actualColor.getBlue()), 2)) );
+        return difference;
+    }
+
+    private double getLinearDifferenceMultiplyer(double difference) {
+        return difference == 0 ? 1 : difference;
+    }
+
+    private double getAllowedColorDifference(){
+        return 3*Math.pow(this.allowedColorDifferencesPerChannel, 2);
+    }
+
+    private boolean isWhite(int elem) {
+        Color c = this.getRGBColor(elem);
+        return c.getRed() == Color.WHITE.getRed()
+            && c.getGreen() == Color.WHITE.getGreen()
+            && c.getBlue() == Color.WHITE.getBlue();
     }
 }

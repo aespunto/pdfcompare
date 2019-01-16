@@ -51,7 +51,7 @@ public class DiffImageTest {
         final BufferedImage resultImage = createAndAssertDiffImage(true, false);
         assertThat(resultImage.getRGB(23, 23), is(color(210, 0, 0)));
 
-        assertMarker(resultImage, 23, 23);
+        //assertMarker(resultImage, 23, 23);
     }
 
     @Test
@@ -60,7 +60,7 @@ public class DiffImageTest {
         final BufferedImage resultImage = createAndAssertDiffImage(true, false);
         assertThat(resultImage.getRGB(23, 23), is(color(0, 180, 0)));
 
-        assertMarker(resultImage, 23, 23);
+        //assertMarker(resultImage, 23, 23);
     }
 
     @Test
@@ -91,7 +91,7 @@ public class DiffImageTest {
         final DiffImage diffImage = new DiffImage(
                 expectedImage,
                 actualImage,
-                1, DefaultEnvironment.create(), exclusions, resultMock);
+                1, DefaultEnvironment.create(), exclusions, resultMock, 0);
         diffImage.diffImages();
         verify(resultMock).addPage(eq(new PageDiffCalculator(hasDifferences, hasDifferencesInExclusion)), eq(1), eq(expectedImage), eq(actualImage), captor.capture());
         return captor.getValue().bufferedImage;
